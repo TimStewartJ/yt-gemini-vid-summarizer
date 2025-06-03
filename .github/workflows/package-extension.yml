@@ -1,0 +1,86 @@
+name: Package Extension
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        
+    - name: Install web-ext
+      run: npm install -g web-ext
+      
+    - name: Get extension version
+      id: version
+      run: |
+        VERSION=$(grep -o '"version": "[^"]*"' manifest.json | grep -o '[0-9.]*')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extension version: $VERSION"
+        
+    - name: Lint extension
+      run: |
+        echo "Running web-ext lint..."
+        web-ext lint --source-dir=. --ignore-files=README.md,LICENSE,.github/
+        
+    - name: Build Firefox extension
+      run: |
+        echo "Building Firefox extension..."
+        web-ext build --source-dir=. --artifacts-dir=./dist --ignore-files=README.md,LICENSE,.github/ --overwrite-dest
+        
+        # Rename the built file for clarity
+        cd dist
+        BUILT_FILE=$(ls *.zip | head -n 1)
+        mv "$BUILT_FILE" "yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip"
+        echo "Firefox package created: yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip"
+        
+        # List contents for verification
+        echo "Package contents:"
+        unzip -l "yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip"
+        
+    - name: Build Chrome/Chromium extension
+      run: |
+        echo "Building Chrome extension..."
+        # Create Chrome-specific manifest (if needed in future)
+        web-ext build --source-dir=. --artifacts-dir=./dist-chrome --ignore-files=README.md,LICENSE,.github/ --overwrite-dest
+        
+        cd dist-chrome
+        BUILT_FILE=$(ls *.zip | head -n 1)
+        mv "$BUILT_FILE" "yt-gemini-summarizer-chrome-v${{ steps.version.outputs.version }}.zip"
+        echo "Chrome package created: yt-gemini-summarizer-chrome-v${{ steps.version.outputs.version }}.zip"
+        
+    - name: Upload Firefox extension artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: firefox-extension-v${{ steps.version.outputs.version }}
+        path: dist/yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip
+        retention-days: 30
+        
+    - name: Upload Chrome extension artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chrome-extension-v${{ steps.version.outputs.version }}
+        path: dist-chrome/yt-gemini-summarizer-chrome-v${{ steps.version.outputs.version }}.zip
+        retention-days: 30
+        
+    - name: Upload build summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-info-v${{ steps.version.outputs.version }}
+        path: |
+          manifest.json
+          dist/
+          dist-chrome/
+        retention-days: 30

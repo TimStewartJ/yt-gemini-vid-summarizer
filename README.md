@@ -138,6 +138,49 @@ yt-gemini-vid-summarizer/
 - Automatically redirects to Gemini
 - Handles error states and user feedback
 
+## 🏗️ CI/CD & Automation
+
+This project uses GitHub Actions to automatically build and package the extension for distribution.
+
+### Automated Building
+
+Every push to the main branch and pull request triggers our CI/CD pipeline that:
+
+1. **Validates** the extension using `web-ext lint`
+2. **Builds** browser-specific packages using the official `web-ext` tool
+3. **Creates** ready-to-install ZIP files for both Firefox and Chrome
+4. **Uploads** artifacts for easy download
+
+### Download Pre-built Extensions
+
+Instead of building manually, you can download pre-built extension packages:
+
+1. Go to the [Actions tab](../../actions) in this repository
+2. Click on the latest successful "Package Extension" workflow run
+3. Download the artifact for your browser:
+   - **Firefox**: `firefox-extension-v{version}.zip`
+   - **Chrome**: `chrome-extension-v{version}.zip`
+
+### Build Status
+
+![Build Status](https://github.com/yourusername/yt-gemini-vid-summarizer/workflows/Package%20Extension/badge.svg)
+
+### Installation from Pre-built Package
+
+#### Firefox
+1. Download the Firefox artifact
+2. Open Firefox and go to `about:debugging`
+3. Click "This Firefox"
+4. Click "Load Temporary Add-on..."
+5. Select the downloaded ZIP file
+
+#### Chrome/Edge
+1. Download the Chrome artifact
+2. Extract the ZIP file to a folder
+3. Open Chrome and go to `chrome://extensions/`
+4. Enable "Developer mode"
+5. Click "Load unpacked" and select the extracted folder
+
 ## 🤝 Contributing
 
 Contributions are welcome! Here are some ways you can help:
