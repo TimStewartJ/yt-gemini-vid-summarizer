@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Video Summarizer with Gemini",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Opens Gemini in sidebar to summarize YouTube videos.",
   "icons": {
     "48": "icons/icon-48.png"
@@ -25,6 +25,14 @@
     "webRequest",
     "webRequestBlocking",
     "notifications",
+    "contextMenus",
     "*://gemini.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
   ]
 }
