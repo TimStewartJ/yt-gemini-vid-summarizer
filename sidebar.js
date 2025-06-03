@@ -1,6 +1,17 @@
-// Wait for the sidebar to load
-document.addEventListener('DOMContentLoaded', function() {
-    // Request the video URL from the background script
+/**
+ * Displays a message in the loading container
+ * @param {string} message - The message to display
+ * @param {boolean} isError - Whether this is an error message (default: false)
+ */
+function displayMessage(message, isError = false) {
+    const color = isError ? '#ff6b6b' : '#999';
+    document.getElementById('loading').innerHTML = `<div style="color: ${color};">${message}</div>`;
+}
+
+/**
+ * Initializes the sidebar by requesting video URL and handling navigation
+ */
+function initializeSidebar() {
     browser.runtime.sendMessage({ action: "getSidebarUrl" })
         .then(response => {
             if (response && response.videoUrl) {
@@ -8,34 +19,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = 'https://gemini.google.com/app';
             } else {
                 // Show message if no video URL is available
-                document.getElementById('loading').innerHTML = 
-                    '<div style="color: #999;">Click the extension icon while on a YouTube video to get started.</div>';
+                displayMessage('Click the extension icon while on a YouTube video to get started.');
             }
         })
         .catch(error => {
             console.error('Error getting video URL:', error);
-            document.getElementById('loading').innerHTML = 
-                '<div style="color: #ff6b6b;">Error loading. Please try again.</div>';
+            displayMessage('Error loading. Please try again.', true);
         });
-});
+}
+
+// Initialize sidebar when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeSidebar);
 
 // Also try immediately in case DOMContentLoaded already fired
-if (document.readyState === 'loading') {
-    // DOMContentLoaded will handle it
-} else {
-    // DOM is already loaded
-    browser.runtime.sendMessage({ action: "getSidebarUrl" })
-        .then(response => {
-            if (response && response.videoUrl) {
-                window.location.href = 'https://gemini.google.com/app';
-            } else {
-                document.getElementById('loading').innerHTML = 
-                    '<div style="color: #999;">Click the extension icon while on a YouTube video to get started.</div>';
-            }
-        })
-        .catch(error => {
-            console.error('Error getting video URL:', error);
-            document.getElementById('loading').innerHTML = 
-                '<div style="color: #ff6b6b;">Error loading. Please try again.</div>';
-        });
+if (document.readyState !== 'loading') {
+    initializeSidebar();
 }
