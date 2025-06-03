@@ -1,0 +1,27 @@
+{
+  "manifest_version": 2,
+  "name": "YouTube Video Summarizer with Gemini",
+  "version": "1.1",
+  "description": "Adds a button to YouTube videos to summarize them with Gemini.",
+  "icons": {
+    "48": "icons/icon-48.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/watch*"],
+      "js": ["content_script.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "webRequest",
+    "webRequestBlocking",
+    "*://gemini.google.com/*"
+  ]
+}
