@@ -2,17 +2,19 @@
   "manifest_version": 2,
   "name": "YouTube Video Summarizer with Gemini",
   "version": "1.1",
-  "description": "Adds a button to YouTube videos to summarize them with Gemini.",
+  "description": "Opens Gemini in sidebar to summarize YouTube videos.",
   "icons": {
     "48": "icons/icon-48.png"
   },
-  "content_scripts": [
-    {
-      "matches": ["*://*.youtube.com/watch*"],
-      "js": ["content_script.js"],
-      "css": ["style.css"]
-    }
-  ],
+  "sidebar_action": {
+    "default_title": "Gemini Summarizer",
+    "default_panel": "sidebar.html",
+    "default_icon": "icons/icon-48.png"
+  },
+  "page_action": {
+    "default_title": "Summarize with Gemini",
+    "default_icon": "icons/icon-48.png"
+  },
   "background": {
     "scripts": ["background.js"],
     "persistent": true
@@ -22,6 +24,7 @@
     "tabs",
     "webRequest",
     "webRequestBlocking",
+    "notifications",
     "*://gemini.google.com/*"
   ]
 }
