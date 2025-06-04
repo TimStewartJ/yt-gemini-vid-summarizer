@@ -4,8 +4,12 @@
  * @param {boolean} isError - Whether this is an error message (default: false)
  */
 function displayMessage(message, isError = false) {
-    const color = isError ? '#ff6b6b' : '#999';
-    document.getElementById('loading').innerHTML = `<div style="color: ${color};">${message}</div>`;
+    const loadingElement = document.getElementById('loading');
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    messageDiv.style.color = isError ? '#ff6b6b' : '#999';
+    loadingElement.innerHTML = ''; // Clear existing content
+    loadingElement.appendChild(messageDiv);
 }
 
 /**
