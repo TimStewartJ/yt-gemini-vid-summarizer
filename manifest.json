@@ -3,9 +3,9 @@
   "name": "YouTube Video Summarizer with Gemini",
   "version": "1.4",
   "description": "Opens Gemini in sidebar to summarize YouTube videos.",
-  "applications": {
+  "browser_specific_settings": {
     "gecko": {
-      "id": "yt-gemini-summarizer@timstewartj.dev"
+      "id": "{5dad0765-f81a-42f5-9072-a66dca31efae}"
     }
   },
   "icons": {
