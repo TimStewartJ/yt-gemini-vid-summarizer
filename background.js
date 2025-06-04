@@ -143,6 +143,44 @@ function handleVideoSummarization(videoUrl) {
 }
 
 /**
+ * Sets up the webRequest listener for Gemini requests with the given prompt
+ * @param {string} promptText - The prompt text to include in the header
+ */
+function setupGeminiListener(promptText) {
+  // Encode the prompt as URI component to handle newlines and special characters
+  const encodedPrompt = encodeURIComponent(promptText);
+  
+  // Set up the webRequest listener for sidebar navigation
+  const listener = function(details) {
+    // Check if this request is from the sidebar and is going to Gemini
+    if (details.url && details.url.includes('gemini.google.com')) {
+      // Add our custom header
+      details.requestHeaders.push({
+        name: "X-Firefox-Gemini",
+        value: encodedPrompt
+      });
+      
+      return {requestHeaders: details.requestHeaders};
+    }
+  };
+  
+  // Remove any existing listener first
+  safeRemoveListener(listener);
+  
+  // Add the listener for Gemini requests
+  browser.webRequest.onBeforeSendHeaders.addListener(
+    listener,
+    {urls: ["*://gemini.google.com/*"]},
+    ["blocking", "requestHeaders"]
+  );
+  
+  // Set a timeout to clean up the listener
+  setTimeout(() => {
+    safeRemoveListener(listener);
+  }, 30000); // 30 second timeout for sidebar usage
+}
+
+/**
  * Sets up header injection for Gemini requests from the sidebar
  * @param {string} videoUrl - The YouTube video URL to include in the prompt
  */
@@ -152,66 +190,11 @@ function prepareGeminiWithHeader(videoUrl) {
     const promptTemplate = result.promptTemplate || "Summarize this YouTube video: {videoUrl}";
     const promptText = promptTemplate.replace('{videoUrl}', videoUrl);
     
-    // Set up the webRequest listener for sidebar navigation
-    const listener = function(details) {
-      // Check if this request is from the sidebar and is going to Gemini
-      if (details.url && details.url.includes('gemini.google.com')) {
-        // Add our custom header
-        details.requestHeaders.push({
-          name: "X-Firefox-Gemini",
-          value: promptText
-        });
-        
-        return {requestHeaders: details.requestHeaders};
-      }
-    };
-    
-    // Remove any existing listener first
-    safeRemoveListener(listener);
-    
-    // Add the listener for Gemini requests
-    browser.webRequest.onBeforeSendHeaders.addListener(
-      listener,
-      {urls: ["*://gemini.google.com/*"]},
-      ["blocking", "requestHeaders"]
-    );
-    
-    // Set a timeout to clean up the listener
-    setTimeout(() => {
-      safeRemoveListener(listener);
-    }, 30000); // 30 second timeout for sidebar usage
+    setupGeminiListener(promptText);
   }).catch(error => {
     console.error('Error loading prompt template:', error);
     // Fallback to default prompt if storage fails
-    const promptText = `Summarize this YouTube video: ${videoUrl}`;
-    
-    // Set up the webRequest listener for sidebar navigation
-    const listener = function(details) {
-      // Check if this request is from the sidebar and is going to Gemini
-      if (details.url && details.url.includes('gemini.google.com')) {
-        // Add our custom header
-        details.requestHeaders.push({
-          name: "X-Firefox-Gemini",
-          value: promptText
-        });
-        
-        return {requestHeaders: details.requestHeaders};
-      }
-    };
-    
-    // Remove any existing listener first
-    safeRemoveListener(listener);
-    
-    // Add the listener for Gemini requests
-    browser.webRequest.onBeforeSendHeaders.addListener(
-      listener,
-      {urls: ["*://gemini.google.com/*"]},
-      ["blocking", "requestHeaders"]
-    );
-    
-    // Set a timeout to clean up the listener
-    setTimeout(() => {
-      safeRemoveListener(listener);
-    }, 30000); // 30 second timeout for sidebar usage
+    const defaultPromptText = `Summarize this YouTube video: ${videoUrl}`;
+    setupGeminiListener(defaultPromptText);
   });
 }
