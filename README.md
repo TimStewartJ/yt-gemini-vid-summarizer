@@ -2,7 +2,6 @@
 
 A powerful Firefox browser extension that seamlessly integrates YouTube with Google's Gemini AI to provide instant video summaries. Get the key insights from any YouTube video without watching the entire content!
 
-![Extension Version](https://img.shields.io/badge/version-1.2-blue.svg)
 ![Firefox Support](https://img.shields.io/badge/firefox-supported-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -19,7 +18,7 @@ A powerful Firefox browser extension that seamlessly integrates YouTube with Goo
 
 ### From Firefox Add-ons Store
 
-*Coming soon - currently in development*
+[Install from Firefox Add-ons Store](https://addons.mozilla.org/en-US/firefox/addon/gemini-yt-video-summarizer/)
 
 ### Manual Installation (Developer Mode)
 
@@ -77,20 +76,6 @@ A powerful Firefox browser extension that seamlessly integrates YouTube with Goo
 - `notifications`: Provide user feedback
 - `contextMenus`: Right-click menu functionality
 - `*://gemini.google.com/*`: Communicate with Gemini AI service
-
-## 📁 Project Structure
-
-```
-yt-gemini-vid-summarizer/
-├── manifest.json          # Extension configuration
-├── background.js          # Background script (event handling)
-├── content.js            # Content script (YouTube integration)
-├── sidebar.html          # Sidebar interface
-├── sidebar.js            # Sidebar functionality
-├── icons/
-│   └── icon-48.png       # Extension icon
-└── README.md             # This file
-```
 
 ## 🚀 Development
 
@@ -168,6 +153,7 @@ Instead of building manually, you can download pre-built extension packages:
 ### Installation from Pre-built Package
 
 #### Firefox
+
 1. Download the Firefox artifact
 2. Open Firefox and go to `about:debugging`
 3. Click "This Firefox"
@@ -175,6 +161,7 @@ Instead of building manually, you can download pre-built extension packages:
 5. Select the downloaded ZIP file
 
 #### Chrome/Edge
+
 1. Download the Chrome artifact
 2. Extract the ZIP file to a folder
 3. Open Chrome and go to `chrome://extensions/`
@@ -217,6 +204,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for productivity and learning**
+### Made with ❤️ for productivity and learning
 
 *If you find this extension helpful, please consider giving it a star ⭐ and sharing it with others!*
