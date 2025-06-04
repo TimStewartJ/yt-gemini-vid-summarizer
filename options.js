@@ -1,5 +1,4 @@
 // Use the default prompt from constants.js
-const DEFAULT_PROMPT = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
 
 /**
  * Shows a status message to the user
@@ -23,12 +22,12 @@ function showStatus(message, isError = false) {
  */
 function loadSettings() {
     browser.storage.sync.get(['promptTemplate']).then(result => {
-        const promptTemplate = result.promptTemplate || DEFAULT_PROMPT;
+        const promptTemplate = result.promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
         document.getElementById('promptTemplate').value = promptTemplate;
     }).catch(error => {
         console.error('Error loading settings:', error);
         showStatus('Error loading settings. Using default values.', true);
-        document.getElementById('promptTemplate').value = DEFAULT_PROMPT;
+        document.getElementById('promptTemplate').value = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
     });
 }
 
@@ -39,10 +38,10 @@ function saveSettings() {
     const promptTemplate = document.getElementById('promptTemplate').value.trim();
     
     // If empty, use default
-    const templateToSave = promptTemplate || DEFAULT_PROMPT;
+    const templateToSave = promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
     
     // Check if the template contains the {videoUrl} placeholder
-    if (templateToSave !== DEFAULT_PROMPT && !templateToSave.includes('{videoUrl}')) {
+    if (templateToSave !== window.EXTENSION_CONSTANTS.DEFAULT_PROMPT && !templateToSave.includes('{videoUrl}')) {
         const continueWithoutPlaceholder = confirm(
             'Warning: Your custom prompt does not contain the {videoUrl} placeholder. ' +
             'This means the video URL may not be included in the prompt sent to Gemini.\n\n' +
@@ -69,9 +68,9 @@ function saveSettings() {
  */
 function resetSettings() {
     if (confirm('Are you sure you want to reset to default settings?')) {
-        document.getElementById('promptTemplate').value = DEFAULT_PROMPT;
+        document.getElementById('promptTemplate').value = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
         browser.storage.sync.set({
-            promptTemplate: DEFAULT_PROMPT
+            promptTemplate: window.EXTENSION_CONSTANTS.DEFAULT_PROMPT
         }).then(() => {
             showStatus('Settings reset to default values!');
         }).catch(error => {
