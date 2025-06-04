@@ -143,12 +143,12 @@ function handleVideoSummarization(videoUrl) {
 }
 
 /**
- * Sets up header injection for Gemini requests from the sidebar
- * @param {string} videoUrl - The YouTube video URL to include in the prompt
+ * Sets up the webRequest listener for Gemini requests with the given prompt
+ * @param {string} promptText - The prompt text to include in the header
  */
-function prepareGeminiWithHeader(videoUrl) {
-  // Create the prompt text
-  const promptText = `Summarize this YouTube video: ${videoUrl}`;
+function setupGeminiListener(promptText) {
+  // Encode the prompt as URI component to handle newlines and special characters
+  const encodedPrompt = encodeURIComponent(promptText);
   
   // Set up the webRequest listener for sidebar navigation
   const listener = function(details) {
@@ -157,7 +157,7 @@ function prepareGeminiWithHeader(videoUrl) {
       // Add our custom header
       details.requestHeaders.push({
         name: "X-Firefox-Gemini",
-        value: promptText
+        value: encodedPrompt
       });
       
       return {requestHeaders: details.requestHeaders};
@@ -178,4 +178,23 @@ function prepareGeminiWithHeader(videoUrl) {
   setTimeout(() => {
     safeRemoveListener(listener);
   }, 30000); // 30 second timeout for sidebar usage
+}
+
+/**
+ * Sets up header injection for Gemini requests from the sidebar
+ * @param {string} videoUrl - The YouTube video URL to include in the prompt
+ */
+function prepareGeminiWithHeader(videoUrl) {
+  // Get the custom prompt template from storage, fallback to default
+  browser.storage.sync.get(['promptTemplate']).then(result => {
+    const promptTemplate = result.promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
+    const promptText = promptTemplate.replace('{videoUrl}', videoUrl);
+    
+    setupGeminiListener(promptText);
+  }).catch(error => {
+    console.error('Error loading prompt template:', error);
+    // Fallback to default prompt if storage fails
+    const defaultPromptText = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT.replace('{videoUrl}', videoUrl);
+    setupGeminiListener(defaultPromptText);
+  });
 }

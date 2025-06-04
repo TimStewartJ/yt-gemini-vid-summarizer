@@ -1,0 +1,21 @@
+# Build artifacts
+dist/
+dist-chrome/
+test-dist/
+*.zip
+
+# Test files
+test-validation.js
+
+# Node modules (if added later)
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
