@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Video Summarizer with Gemini",
-  "version": "1.4",
+  "version": "1.5",
   "description": "Opens Gemini in sidebar to summarize YouTube videos.",
   "browser_specific_settings": {
     "gecko": {
