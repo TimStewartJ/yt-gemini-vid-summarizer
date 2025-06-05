@@ -519,35 +519,156 @@ function markVideoAsWatched(videoUrl) {
  * @returns {Element|null} - The video element or null if not found
  */
 function findVideoElementById(videoId) {
-    // Try multiple selectors to find the video element
-    const selectors = [
-        `a[href*="watch?v=${videoId}"]`,
-        `a[href*="watch/${videoId}"]`,
-        `[data-video-id="${videoId}"]`,
-        `ytd-video-renderer[data-video-id="${videoId}"]`,
-        `ytd-compact-video-renderer[data-video-id="${videoId}"]`,
-        `ytd-grid-video-renderer[data-video-id="${videoId}"]`
+    console.log(`Searching for video container with ID: ${videoId}`);
+    
+    // Define all YouTube video container types
+    const containerTypes = [
+        'ytd-compact-video-renderer',     // Sidebar recommendations
+        'ytd-video-renderer',             // Main feed videos
+        'ytd-grid-video-renderer',        // Grid layout videos
+        'ytd-rich-item-renderer',         // Shorts and mixed content
+        'ytd-playlist-video-renderer',    // Playlist videos
+        'ytd-reel-item-renderer'          // Shorts reels
     ];
     
-    for (const selector of selectors) {
-        const elements = document.querySelectorAll(selector);
-        for (const element of elements) {
-            // Find the parent video container
-            let container = element;
-            while (container && !container.classList.contains('ytd-video-renderer') && 
-                   !container.classList.contains('ytd-compact-video-renderer') &&
-                   !container.classList.contains('ytd-grid-video-renderer') &&
-                   !container.classList.contains('ytd-rich-item-renderer')) {
-                container = container.parentElement;
-                if (!container || container === document.body) break;
+    // Try multiple strategies to find the video element
+    const searchStrategies = [
+        // Strategy 1: Direct data attribute match
+        () => {
+            for (const containerType of containerTypes) {
+                const elements = document.querySelectorAll(`${containerType}[data-video-id="${videoId}"]`);
+                for (const element of elements) {
+                    if (validateVideoContainer(element, videoId)) {
+                        console.log(`Found video container via data-video-id: ${containerType}`);
+                        return element;
+                    }
+                }
             }
-            if (container && container !== document.body) {
-                return container;
+            return null;
+        },
+        
+        // Strategy 2: Find by video link and traverse up to container
+        () => {
+            const linkSelectors = [
+                `a[href*="watch?v=${videoId}"]`,
+                `a[href*="watch/${videoId}"]`,
+                `a[href*="/v/${videoId}"]`,
+                `a[href*="youtu.be/${videoId}"]`
+            ];
+            
+            for (const selector of linkSelectors) {
+                const links = document.querySelectorAll(selector);
+                for (const link of links) {
+                    const container = findParentContainer(link, containerTypes);
+                    if (container && validateVideoContainer(container, videoId)) {
+                        console.log(`Found video container via link traversal: ${container.tagName.toLowerCase()}`);
+                        return container;
+                    }
+                }
             }
+            return null;
+        },
+        
+        // Strategy 3: Search within known containers for video ID
+        () => {
+            for (const containerType of containerTypes) {
+                const containers = document.querySelectorAll(containerType);
+                for (const container of containers) {
+                    if (containerContainsVideo(container, videoId)) {
+                        console.log(`Found video container via content search: ${containerType}`);
+                        return container;
+                    }
+                }
+            }
+            return null;
+        }
+    ];
+    
+    // Execute strategies in order
+    for (let i = 0; i < searchStrategies.length; i++) {
+        try {
+            const result = searchStrategies[i]();
+            if (result) {
+                return result;
+            }
+        } catch (error) {
+            console.warn(`Search strategy ${i + 1} failed:`, error);
         }
     }
     
+    console.log(`Could not find video container for ID: ${videoId}`);
     return null;
+}
+
+/**
+ * Finds the parent container of a given element that matches one of the container types
+ * @param {Element} element - The starting element
+ * @param {Array<string>} containerTypes - Array of container type selectors
+ * @returns {Element|null} - The parent container or null if not found
+ */
+function findParentContainer(element, containerTypes) {
+    let current = element;
+    const maxDepth = 15; // Prevent infinite loops
+    
+    for (let i = 0; i < maxDepth && current && current !== document.body; i++) {
+        for (const containerType of containerTypes) {
+            if (current.tagName && current.tagName.toLowerCase() === containerType) {
+                return current;
+            }
+        }
+        current = current.parentElement;
+    }
+    
+    return null;
+}
+
+/**
+ * Validates that a container element actually contains the specified video
+ * @param {Element} container - The container element to validate
+ * @param {string} videoId - The video ID to validate against
+ * @returns {boolean} - True if container contains the video
+ */
+function validateVideoContainer(container, videoId) {
+    if (!container) return false;
+    
+    // Check data attributes
+    const dataVideoId = container.getAttribute('data-video-id') || 
+                       container.dataset?.videoId;
+    if (dataVideoId === videoId) {
+        return true;
+    }
+    
+    // Check for video links within the container
+    const videoLinks = container.querySelectorAll(`a[href*="${videoId}"]`);
+    return videoLinks.length > 0;
+}
+
+/**
+ * Checks if a container contains a video with the specified ID
+ * @param {Element} container - The container to search within
+ * @param {string} videoId - The video ID to search for
+ * @returns {boolean} - True if the container contains the video
+ */
+function containerContainsVideo(container, videoId) {
+    // Check for video ID in href attributes
+    const links = container.querySelectorAll('a[href]');
+    for (const link of links) {
+        if (extractVideoId(link.href) === videoId) {
+            return true;
+        }
+    }
+    
+    // Check for video ID in data attributes
+    const elementsWithData = container.querySelectorAll('[data-video-id], [data-href]');
+    for (const element of elementsWithData) {
+        const dataVideoId = element.getAttribute('data-video-id');
+        const dataHref = element.getAttribute('data-href');
+        if (dataVideoId === videoId || (dataHref && extractVideoId(dataHref) === videoId)) {
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 /**
@@ -556,21 +677,152 @@ function findVideoElementById(videoId) {
  * @returns {Element|null} - The menu button or null if not found
  */
 function findVideoMenuButton(videoElement) {
-    // Common selectors for YouTube's three-dot menu
-    const menuSelectors = [
+    console.log(`Searching for menu button in container: ${videoElement.tagName.toLowerCase()}`);
+    
+    // Get the container type to use appropriate selectors
+    const containerType = videoElement.tagName.toLowerCase();
+    
+    // Container-specific menu selectors
+    const menuSelectorsByType = {
+        'ytd-compact-video-renderer': [
+            '#menu yt-icon-button button',
+            'ytd-menu-renderer yt-icon-button button',
+            '.dropdown-trigger button',
+            'yt-icon-button.dropdown-trigger button',
+            '#menu button[aria-label*="Action menu"]',
+            'button[aria-label*="Action menu"]'
+        ],
+        'ytd-video-renderer': [
+            'button[aria-label*="More actions"]',
+            'ytd-menu-renderer button',
+            '#menu button',
+            'yt-icon-button button[aria-label*="More"]',
+            '.ytd-menu-renderer button'
+        ],
+        'ytd-grid-video-renderer': [
+            'ytd-menu-renderer button',
+            'button[aria-label*="More actions"]',
+            '#menu button',
+            'yt-icon-button button'
+        ],
+        'ytd-rich-item-renderer': [
+            'ytd-menu-renderer button', 
+            'button[aria-label*="More actions"]',
+            'yt-icon-button button'
+        ],
+        'ytd-playlist-video-renderer': [
+            'ytd-menu-renderer button',
+            'button[aria-label*="More actions"]',
+            '#menu button'
+        ]
+    };
+    
+    // Universal fallback selectors that work across all types
+    const universalSelectors = [
         'button[aria-label*="More actions"]',
         'button[aria-label*="Action menu"]',
         'ytd-menu-renderer button',
-        'yt-icon-button[aria-label*="More"]',
+        'yt-icon-button button',
+        '#menu button',
         '.ytd-menu-renderer button',
         '[aria-label*="More actions"] button',
-        'button[aria-haspopup="true"]'
+        'button[aria-haspopup="true"]',
+        '[role="button"][aria-label*="More"]',
+        '[role="button"][aria-label*="Action"]'
     ];
     
-    for (const selector of menuSelectors) {
-        const button = videoElement.querySelector(selector);
-        if (button && button.offsetParent !== null) { // Check if visible
+    // Try container-specific selectors first
+    const containerSelectors = menuSelectorsByType[containerType] || [];
+    const allSelectors = [...containerSelectors, ...universalSelectors];
+    
+    // Remove duplicates
+    const uniqueSelectors = [...new Set(allSelectors)];
+    
+    console.log(`Trying ${uniqueSelectors.length} selectors for ${containerType}`);
+    
+    for (const selector of uniqueSelectors) {
+        try {
+            const buttons = videoElement.querySelectorAll(selector);
+            for (const button of buttons) {
+                if (isValidMenuButton(button)) {
+                    console.log(`Found menu button using selector: ${selector}`);
+                    return button;
+                }
+            }
+        } catch (error) {
+            console.warn(`Invalid selector: ${selector}`, error);
+        }
+    }
+    
+    // If no button found with standard selectors, try a broader search
+    console.log('Standard selectors failed, trying broader search...');
+    const broadButton = findMenuButtonBroadSearch(videoElement);
+    if (broadButton) {
+        console.log('Found menu button via broad search');
+        return broadButton;
+    }
+    
+    console.log(`Could not find menu button in ${containerType}`);
+    return null;
+}
+
+/**
+ * Validates if a button element is a valid menu button
+ * @param {Element} button - The button element to validate
+ * @returns {boolean} - True if it's a valid menu button
+ */
+function isValidMenuButton(button) {
+    if (!button) return false;
+    
+    // Check if button is visible and interactable
+    if (button.offsetParent === null) return false;
+    if (button.disabled) return false;
+    if (button.getAttribute('aria-disabled') === 'true') return false;
+    
+    // Check for menu-related attributes
+    const ariaLabel = button.getAttribute('aria-label') || '';
+    const ariaHaspopup = button.getAttribute('aria-haspopup');
+    const className = button.className || '';
+    
+    // Validate it looks like a menu button
+    const isMenuButton = 
+        ariaLabel.toLowerCase().includes('more') ||
+        ariaLabel.toLowerCase().includes('action') ||
+        ariaLabel.toLowerCase().includes('menu') ||
+        ariaHaspopup === 'true' ||
+        className.includes('dropdown') ||
+        className.includes('menu');
+    
+    // Additional check: look for three-dot icon (common pattern)
+    const hasThreeDotIcon = button.querySelector('svg') && 
+        (button.innerHTML.includes('M12 16.5') || // Common three-dot SVG path
+         button.innerHTML.includes('more_vert') ||
+         button.innerHTML.includes('more_horiz'));
+    
+    return isMenuButton || hasThreeDotIcon;
+}
+
+/**
+ * Performs a broader search for menu buttons when standard selectors fail
+ * @param {Element} container - The container to search within
+ * @returns {Element|null} - Found menu button or null
+ */
+function findMenuButtonBroadSearch(container) {
+    // Look for buttons with three-dot icons
+    const allButtons = container.querySelectorAll('button, [role="button"]');
+    
+    for (const button of allButtons) {
+        if (isValidMenuButton(button)) {
             return button;
+        }
+    }
+    
+    // Look for yt-icon-button elements (YouTube's custom button component)
+    const iconButtons = container.querySelectorAll('yt-icon-button');
+    for (const iconButton of iconButtons) {
+        const innerButton = iconButton.querySelector('button');
+        if (innerButton && isValidMenuButton(innerButton)) {
+            return innerButton;
         }
     }
     
