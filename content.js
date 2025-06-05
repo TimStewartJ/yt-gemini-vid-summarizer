@@ -64,8 +64,13 @@ function initializeContentScript() {
         if (request.action === 'getContextVideoUrl') {
             sendResponse({ videoUrl: lastRightClickedVideoUrl });
         } else if (request.action === 'markVideoAsWatched') {
-            window.VideoAutomation.markVideoAsWatched(request.videoUrl);
-            sendResponse({ success: true });
+            try {
+                window.VideoAutomation.markVideoAsWatched(request.videoUrl);
+                sendResponse({ success: true });
+            } catch (error) {
+                console.error('Error marking video as watched:', error);
+                sendResponse({ success: false, error: error.message });
+            }
         }
     });
 }
