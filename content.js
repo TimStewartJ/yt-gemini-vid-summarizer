@@ -200,6 +200,289 @@ observer.observe(document.body, {
 });
 
 /**
+ * Configuration for smart automation system
+ */
+const AUTOMATION_CONFIG = {
+    timeouts: {
+        elementWait: 5000,      // Max wait for element appearance
+        actionDelay: 100,       // Min delay between actions
+        menuLoad: 3000,         // Menu loading timeout
+        maxRetries: 3           // Max retry attempts
+    },
+    
+    selectors: {
+        notInterested: [
+            'ytd-menu-service-item-renderer',
+            'tp-yt-paper-item',
+            '[aria-label*="Not interested"]'
+        ],
+        tellUsWhy: [
+            'ytd-button-renderer button',
+            'button[aria-label*="Tell us why"]',
+            'button'
+        ],
+        alreadyWatched: [
+            'ytd-dismissal-reason-text-renderer tp-yt-paper-checkbox',
+            'tp-yt-paper-checkbox',
+            '[aria-label*="already watched"]'
+        ],
+        submit: [
+            'ytd-button-renderer#submit button',
+            'ytd-button-renderer button',
+            'button[aria-label*="Submit"]'
+        ]
+    },
+    
+    // Text patterns for element validation
+    textPatterns: {
+        notInterested: ['Not interested', 'not interested'],
+        tellUsWhy: ['Tell us why', 'tell us why'],
+        alreadyWatched: ["I've already watched", 'already watched', 'Already watched'],
+        submit: ['Submit', 'submit', 'Send']
+    },
+    
+    strategies: {
+        usePolling: true,
+        useMutationObserver: true,
+        validateVisibility: true,
+        enableRetries: true
+    }
+};
+
+/**
+ * Smart Element Waiter - Combines MutationObserver and intelligent polling
+ */
+class SmartElementWaiter {
+    /**
+     * Waits for an element to appear in the DOM with multiple strategies
+     * @param {string|Array} selectors - CSS selector(s) to wait for
+     * @param {Object} options - Configuration options
+     * @returns {Promise<Element>} - The found element
+     */
+    static async waitForElement(selectors, options = {}) {
+        const config = {
+            timeout: options.timeout || AUTOMATION_CONFIG.timeouts.elementWait,
+            validateVisibility: options.validateVisibility !== false,
+            validateInteractable: options.validateInteractable || false,
+            retryCount: options.retryCount || 0,
+            maxRetries: options.maxRetries || AUTOMATION_CONFIG.timeouts.maxRetries,
+            textPattern: options.textPattern || null
+        };
+        
+        const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
+        
+        return new Promise((resolve, reject) => {
+            let resolved = false;
+            
+            // First, try to find the element immediately
+            const immediateElement = this.findBestElement(selectorArray, config);
+            if (immediateElement) {
+                resolved = true;
+                return resolve(immediateElement);
+            }
+            
+            // Set up timeout
+            const timeoutId = setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    observer?.disconnect();
+                    
+                    if (config.retryCount < config.maxRetries) {
+                        // Retry with increased timeout and different strategy
+                        const retryOptions = {
+                            ...options,
+                            retryCount: config.retryCount + 1,
+                            timeout: Math.min(config.timeout * 1.5, 10000)
+                        };
+                        
+                        console.log(`Retrying element search (attempt ${config.retryCount + 1}/${config.maxRetries})`);
+                        this.waitForElement(selectors, retryOptions)
+                            .then(resolve)
+                            .catch(reject);
+                    } else {
+                        reject(new Error(`Element not found after ${config.maxRetries} attempts: ${selectorArray.join(', ')}`));
+                    }
+                }
+            }, config.timeout);
+            
+            // Set up MutationObserver for dynamic content
+            let observer = null;
+            if (AUTOMATION_CONFIG.strategies.useMutationObserver) {
+                observer = new MutationObserver(() => {
+                    if (resolved) return;
+                    
+                    const element = this.findBestElement(selectorArray, config);
+                    if (element) {
+                        resolved = true;
+                        clearTimeout(timeoutId);
+                        observer.disconnect();
+                        resolve(element);
+                    }
+                });
+                
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['style', 'class', 'hidden']
+                });
+            }
+            
+            // Set up polling as backup
+            if (AUTOMATION_CONFIG.strategies.usePolling) {
+                const poll = () => {
+                    if (resolved) return;
+                    
+                    const element = this.findBestElement(selectorArray, config);
+                    if (element) {
+                        resolved = true;
+                        clearTimeout(timeoutId);
+                        observer?.disconnect();
+                        resolve(element);
+                    } else {
+                        setTimeout(poll, 250);
+                    }
+                };
+                
+                setTimeout(poll, 100);
+            }
+        });
+    }
+    
+    /**
+     * Finds the best matching element from a list of selectors
+     * @param {Array} selectors - Array of CSS selectors
+     * @param {Object} config - Validation configuration
+     * @returns {Element|null} - The best matching element or null
+     */
+    static findBestElement(selectors, config) {
+        for (const selector of selectors) {
+            try {
+                const elements = document.querySelectorAll(selector);
+                for (const element of elements) {
+                    if (this.validateElement(element, config)) {
+                        return element;
+                    }
+                }
+            } catch (error) {
+                console.warn(`Invalid selector: ${selector}`, error);
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Validates if an element meets the required criteria
+     * @param {Element} element - The element to validate
+     * @param {Object} config - Validation configuration
+     * @returns {boolean} - True if element is valid
+     */
+    static validateElement(element, config) {
+        if (!element) return false;
+        
+        // Check if element is visible
+        if (config.validateVisibility) {
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+            
+            if (rect.width === 0 || rect.height === 0 ||
+                style.display === 'none' ||
+                style.visibility === 'hidden' ||
+                style.opacity === '0') {
+                return false;
+            }
+        }
+        
+        // Check if element is interactable
+        if (config.validateInteractable) {
+            if (element.disabled || element.getAttribute('aria-disabled') === 'true') {
+                return false;
+            }
+        }
+        
+        // Check text content if pattern provided
+        if (config.textPattern) {
+            const elementText = element.textContent || element.innerText || '';
+            const hasMatchingText = config.textPattern.some(pattern => 
+                elementText.toLowerCase().includes(pattern.toLowerCase())
+            );
+            if (!hasMatchingText) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+}
+
+/**
+ * Action Sequencer - Manages sequential automation steps
+ */
+class ActionSequencer {
+    /**
+     * Executes a sequence of actions with proper waiting
+     * @param {Array} steps - Array of step objects
+     * @param {string} videoId - Video ID for logging
+     * @returns {Promise<boolean>} - Success status
+     */
+    static async executeSequence(steps, videoId) {
+        console.log(`Starting smart automation sequence for video: ${videoId}`);
+        
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            
+            try {
+                console.log(`Step ${i + 1}/${steps.length}: ${step.name}`);
+                
+                // Wait for element
+                const element = step.element || await SmartElementWaiter.waitForElement(
+                    step.selectors,
+                    step.options || {}
+                );
+                
+                // Add small delay for UI stability
+                await this.delay(AUTOMATION_CONFIG.timeouts.actionDelay);
+                
+                // Execute action
+                if (step.action) {
+                    await step.action(element, videoId);
+                } else {
+                    element.click();
+                }
+                
+                console.log(`✓ Step ${i + 1} completed: ${step.name}`);
+                
+                // Wait a bit before next step
+                if (i < steps.length - 1) {
+                    await this.delay(step.delayAfter || 200);
+                }
+                
+            } catch (error) {
+                console.error(`✗ Step ${i + 1} failed: ${step.name}`, error);
+                
+                if (step.required !== false) {
+                    throw new Error(`Required step failed: ${step.name} - ${error.message}`);
+                } else {
+                    console.log(`Skipping optional step: ${step.name}`);
+                }
+            }
+        }
+        
+        console.log(`✓ Successfully completed automation sequence for video: ${videoId}`);
+        return true;
+    }
+    
+    /**
+     * Creates a promise that resolves after a delay
+     * @param {number} ms - Milliseconds to delay
+     * @returns {Promise} - Promise that resolves after delay
+     */
+    static delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+}
+
+/**
  * Marks a video as watched by automating the "Not interested" -> "Why" -> "Already watched" flow
  * @param {string} videoUrl - The YouTube video URL to mark as watched
  */
@@ -295,164 +578,60 @@ function findVideoMenuButton(videoElement) {
 }
 
 /**
- * Automates the clicking sequence to mark video as watched
+ * Automates the clicking sequence to mark video as watched using smart waiting
  * @param {Element} menuButton - The three-dot menu button
  * @param {string} videoId - The video ID for logging purposes
  */
-function automateWatchedMarking(menuButton, videoId) {
-    console.log('Starting automation for video:', videoId);
-    
-    // Step 1: Click the menu button
-    menuButton.click();
-    
-    // Wait for menu to appear, then click "Not interested"
-    setTimeout(() => {
-        const notInterestedButton = findNotInterestedButton();
-        if (notInterestedButton) {
-            console.log('Clicking "Not interested" for video:', videoId);
-            notInterestedButton.click();
-            
-            // Step 2: Wait for submenu and click "Tell us why"
-            setTimeout(() => {
-                const tellUsWhyButton = findTellUsWhyButton();
-                if (tellUsWhyButton) {
-                    console.log('Clicking "Tell us why" for video:', videoId);
-                    tellUsWhyButton.click();
-                    
-                    // Step 3: Wait for options and click "Already watched"
-                    setTimeout(() => {
-                        const alreadyWatchedButton = findAlreadyWatchedButton();
-                        if (alreadyWatchedButton) {
-                            console.log('Clicking "Already watched" for video:', videoId);
-                            alreadyWatchedButton.click();
-                            
-                            // Step 4: Wait and click Submit button
-                            setTimeout(() => {
-                                const submitButton = findSubmitButton();
-                                if (submitButton) {
-                                    console.log('Clicking "Submit" for video:', videoId);
-                                    submitButton.click();
-                                    console.log('Successfully marked video as watched:', videoId);
-                                } else {
-                                    console.log('Could not find Submit button for video:', videoId);
-                                }
-                            }, 300); // Shorter delay for submit
-                        } else {
-                            console.log('Could not find "Already watched" checkbox for video:', videoId);
-                        }
-                    }, 500);
-                } else {
-                    console.log('Could not find "Tell us why" button for video:', videoId);
-                }
-            }, 500);
-        } else {
-            console.log('Could not find "Not interested" button for video:', videoId);
+async function automateWatchedMarking(menuButton, videoId) {
+    // Define the automation sequence
+    const automationSteps = [
+        {
+            name: 'Click menu button',
+            action: async (element) => {
+                element.click();
+            },
+            element: menuButton, // Use the actual button element
+            options: { validateVisibility: false } // Already validated
+        },
+        {
+            name: 'Click "Not interested"',
+            selectors: AUTOMATION_CONFIG.selectors.notInterested,
+            options: { 
+                textPattern: AUTOMATION_CONFIG.textPatterns.notInterested 
+            },
+            action: async (element) => {
+                // Find the actual clickable element within the menu item
+                const clickableElement = element.querySelector('tp-yt-paper-item') || element;
+                clickableElement.click();
+            },
+            delayAfter: 300
+        },
+        {
+            name: 'Click "Tell us why"',
+            selectors: AUTOMATION_CONFIG.selectors.tellUsWhy,
+            options: { 
+                textPattern: AUTOMATION_CONFIG.textPatterns.tellUsWhy 
+            },
+            delayAfter: 400
+        },
+        {
+            name: 'Click "Already watched"',
+            selectors: AUTOMATION_CONFIG.selectors.alreadyWatched,
+            options: { 
+                textPattern: AUTOMATION_CONFIG.textPatterns.alreadyWatched 
+            },
+            delayAfter: 300
+        },
+        {
+            name: 'Click "Submit"',
+            selectors: AUTOMATION_CONFIG.selectors.submit,
+            options: { 
+                textPattern: AUTOMATION_CONFIG.textPatterns.submit 
+            },
+            delayAfter: 200
         }
-    }, 500);
-}
-
-/**
- * Finds the "Not interested" button in the menu
- * @returns {Element|null} - The button element or null if not found
- */
-function findNotInterestedButton() {
-    // First, try to find all menu service items
-    const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer');
+    ];
     
-    for (const item of menuItems) {
-        // Look for the yt-formatted-string within this item
-        const textElement = item.querySelector('yt-formatted-string');
-        if (textElement && textElement.textContent.trim() === 'Not interested') {
-            // Return the clickable parent element (tp-yt-paper-item)
-            const clickableElement = item.querySelector('tp-yt-paper-item');
-            return clickableElement || item;
-        }
-    }
-    
-    // Fallback: search more broadly
-    const allFormattedStrings = document.querySelectorAll('yt-formatted-string');
-    for (const element of allFormattedStrings) {
-        if (element.textContent.trim() === 'Not interested') {
-            // Find the parent menu item renderer
-            const menuItem = element.closest('ytd-menu-service-item-renderer');
-            if (menuItem) {
-                const clickableElement = menuItem.querySelector('tp-yt-paper-item');
-                return clickableElement || menuItem;
-            }
-        }
-    }
-    
-    return null;
-}
-
-/**
- * Finds the "Tell us why" button
- * @returns {Element|null} - The button element or null if not found
- */
-function findTellUsWhyButton() {
-    // Look for ytd-button-renderer with "Tell us why" text
-    const buttonRenderers = document.querySelectorAll('ytd-button-renderer');
-    for (const renderer of buttonRenderers) {
-        const textElement = renderer.querySelector('span[role="text"]');
-        if (textElement && textElement.textContent.trim() === 'Tell us why') {
-            const button = renderer.querySelector('button');
-            if (button && button.offsetParent !== null) {
-                return button;
-            }
-        }
-    }
-    
-    // Fallback: look for button with aria-label
-    const buttons = document.querySelectorAll('button[aria-label*="Tell us why"]');
-    for (const button of buttons) {
-        if (button.offsetParent !== null) {
-            return button;
-        }
-    }
-    
-    return null;
-}
-
-/**
- * Finds the "Already watched" or "I've already watched the video" checkbox
- * @returns {Element|null} - The checkbox element or null if not found
- */
-function findAlreadyWatchedButton() {
-    const dismissalReasons = document.querySelectorAll('ytd-dismissal-reason-text-renderer');
-    for (const reason of dismissalReasons) {
-        const textElement = reason.querySelector('yt-formatted-string');
-        if (textElement && textElement.textContent.trim() === "I've already watched the video") {
-            const checkbox = reason.querySelector('tp-yt-paper-checkbox');
-            if (checkbox && checkbox.offsetParent !== null) {
-                return checkbox;
-            }
-        }
-    }
-    return null;
-}
-
-/**
- * Finds the Submit button after selecting a dismissal reason
- * @returns {Element|null} - The submit button element or null if not found
- */
-function findSubmitButton() {
-    // Look for the submit button by ID first
-    const submitById = document.querySelector('ytd-button-renderer#submit');
-    if (submitById && submitById.offsetParent !== null) {
-        const button = submitById.querySelector('button');
-        return button || submitById;
-    }
-    
-    // Fallback: look for button with "Submit" text
-    const buttons = document.querySelectorAll('ytd-button-renderer button');
-    for (const button of buttons) {
-        const textElement = button.querySelector('span[role="text"]');
-        if (textElement && textElement.textContent.trim() === 'Submit') {
-            if (button.offsetParent !== null) {
-                return button;
-            }
-        }
-    }
-    
-    return null;
+    // Execute the sequence
+    await ActionSequencer.executeSequence(automationSteps, videoId);
 }
