@@ -176,6 +176,9 @@ function initializeContentScript() {
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'getContextVideoUrl') {
             sendResponse({ videoUrl: lastRightClickedVideoUrl });
+        } else if (request.action === 'markVideoAsWatched') {
+            markVideoAsWatched(request.videoUrl);
+            sendResponse({ success: true });
         }
     });
 }
@@ -195,3 +198,261 @@ observer.observe(document.body, {
     childList: true,
     subtree: true
 });
+
+/**
+ * Marks a video as watched by automating the "Not interested" -> "Why" -> "Already watched" flow
+ * @param {string} videoUrl - The YouTube video URL to mark as watched
+ */
+function markVideoAsWatched(videoUrl) {
+    console.log('Attempting to mark video as watched:', videoUrl);
+    
+    const videoId = extractVideoId(videoUrl);
+    if (!videoId) {
+        console.log('Could not extract video ID from URL:', videoUrl);
+        return;
+    }
+    
+    // Try to find the video element on the page
+    const videoElement = findVideoElementById(videoId);
+    if (!videoElement) {
+        console.log('Could not find video element for ID:', videoId);
+        return;
+    }
+    
+    // Try to find and click the three-dot menu
+    const menuButton = findVideoMenuButton(videoElement);
+    if (!menuButton) {
+        console.log('Could not find menu button for video:', videoId);
+        return;
+    }
+    
+    // Start the automation sequence
+    automateWatchedMarking(menuButton, videoId);
+}
+
+/**
+ * Finds a video element on the page by video ID
+ * @param {string} videoId - The YouTube video ID to find
+ * @returns {Element|null} - The video element or null if not found
+ */
+function findVideoElementById(videoId) {
+    // Try multiple selectors to find the video element
+    const selectors = [
+        `a[href*="watch?v=${videoId}"]`,
+        `a[href*="watch/${videoId}"]`,
+        `[data-video-id="${videoId}"]`,
+        `ytd-video-renderer[data-video-id="${videoId}"]`,
+        `ytd-compact-video-renderer[data-video-id="${videoId}"]`,
+        `ytd-grid-video-renderer[data-video-id="${videoId}"]`
+    ];
+    
+    for (const selector of selectors) {
+        const elements = document.querySelectorAll(selector);
+        for (const element of elements) {
+            // Find the parent video container
+            let container = element;
+            while (container && !container.classList.contains('ytd-video-renderer') && 
+                   !container.classList.contains('ytd-compact-video-renderer') &&
+                   !container.classList.contains('ytd-grid-video-renderer') &&
+                   !container.classList.contains('ytd-rich-item-renderer')) {
+                container = container.parentElement;
+                if (!container || container === document.body) break;
+            }
+            if (container && container !== document.body) {
+                return container;
+            }
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Finds the three-dot menu button for a video element
+ * @param {Element} videoElement - The video container element
+ * @returns {Element|null} - The menu button or null if not found
+ */
+function findVideoMenuButton(videoElement) {
+    // Common selectors for YouTube's three-dot menu
+    const menuSelectors = [
+        'button[aria-label*="More actions"]',
+        'button[aria-label*="Action menu"]',
+        'ytd-menu-renderer button',
+        'yt-icon-button[aria-label*="More"]',
+        '.ytd-menu-renderer button',
+        '[aria-label*="More actions"] button',
+        'button[aria-haspopup="true"]'
+    ];
+    
+    for (const selector of menuSelectors) {
+        const button = videoElement.querySelector(selector);
+        if (button && button.offsetParent !== null) { // Check if visible
+            return button;
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Automates the clicking sequence to mark video as watched
+ * @param {Element} menuButton - The three-dot menu button
+ * @param {string} videoId - The video ID for logging purposes
+ */
+function automateWatchedMarking(menuButton, videoId) {
+    console.log('Starting automation for video:', videoId);
+    
+    // Step 1: Click the menu button
+    menuButton.click();
+    
+    // Wait for menu to appear, then click "Not interested"
+    setTimeout(() => {
+        const notInterestedButton = findNotInterestedButton();
+        if (notInterestedButton) {
+            console.log('Clicking "Not interested" for video:', videoId);
+            notInterestedButton.click();
+            
+            // Step 2: Wait for submenu and click "Tell us why"
+            setTimeout(() => {
+                const tellUsWhyButton = findTellUsWhyButton();
+                if (tellUsWhyButton) {
+                    console.log('Clicking "Tell us why" for video:', videoId);
+                    tellUsWhyButton.click();
+                    
+                    // Step 3: Wait for options and click "Already watched"
+                    setTimeout(() => {
+                        const alreadyWatchedButton = findAlreadyWatchedButton();
+                        if (alreadyWatchedButton) {
+                            console.log('Clicking "Already watched" for video:', videoId);
+                            alreadyWatchedButton.click();
+                            
+                            // Step 4: Wait and click Submit button
+                            setTimeout(() => {
+                                const submitButton = findSubmitButton();
+                                if (submitButton) {
+                                    console.log('Clicking "Submit" for video:', videoId);
+                                    submitButton.click();
+                                    console.log('Successfully marked video as watched:', videoId);
+                                } else {
+                                    console.log('Could not find Submit button for video:', videoId);
+                                }
+                            }, 300); // Shorter delay for submit
+                        } else {
+                            console.log('Could not find "Already watched" checkbox for video:', videoId);
+                        }
+                    }, 500);
+                } else {
+                    console.log('Could not find "Tell us why" button for video:', videoId);
+                }
+            }, 500);
+        } else {
+            console.log('Could not find "Not interested" button for video:', videoId);
+        }
+    }, 500);
+}
+
+/**
+ * Finds the "Not interested" button in the menu
+ * @returns {Element|null} - The button element or null if not found
+ */
+function findNotInterestedButton() {
+    // First, try to find all menu service items
+    const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer');
+    
+    for (const item of menuItems) {
+        // Look for the yt-formatted-string within this item
+        const textElement = item.querySelector('yt-formatted-string');
+        if (textElement && textElement.textContent.trim() === 'Not interested') {
+            // Return the clickable parent element (tp-yt-paper-item)
+            const clickableElement = item.querySelector('tp-yt-paper-item');
+            return clickableElement || item;
+        }
+    }
+    
+    // Fallback: search more broadly
+    const allFormattedStrings = document.querySelectorAll('yt-formatted-string');
+    for (const element of allFormattedStrings) {
+        if (element.textContent.trim() === 'Not interested') {
+            // Find the parent menu item renderer
+            const menuItem = element.closest('ytd-menu-service-item-renderer');
+            if (menuItem) {
+                const clickableElement = menuItem.querySelector('tp-yt-paper-item');
+                return clickableElement || menuItem;
+            }
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Finds the "Tell us why" button
+ * @returns {Element|null} - The button element or null if not found
+ */
+function findTellUsWhyButton() {
+    // Look for ytd-button-renderer with "Tell us why" text
+    const buttonRenderers = document.querySelectorAll('ytd-button-renderer');
+    for (const renderer of buttonRenderers) {
+        const textElement = renderer.querySelector('span[role="text"]');
+        if (textElement && textElement.textContent.trim() === 'Tell us why') {
+            const button = renderer.querySelector('button');
+            if (button && button.offsetParent !== null) {
+                return button;
+            }
+        }
+    }
+    
+    // Fallback: look for button with aria-label
+    const buttons = document.querySelectorAll('button[aria-label*="Tell us why"]');
+    for (const button of buttons) {
+        if (button.offsetParent !== null) {
+            return button;
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Finds the "Already watched" or "I've already watched the video" checkbox
+ * @returns {Element|null} - The checkbox element or null if not found
+ */
+function findAlreadyWatchedButton() {
+    const dismissalReasons = document.querySelectorAll('ytd-dismissal-reason-text-renderer');
+    for (const reason of dismissalReasons) {
+        const textElement = reason.querySelector('yt-formatted-string');
+        if (textElement && textElement.textContent.trim() === "I've already watched the video") {
+            const checkbox = reason.querySelector('tp-yt-paper-checkbox');
+            if (checkbox && checkbox.offsetParent !== null) {
+                return checkbox;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Finds the Submit button after selecting a dismissal reason
+ * @returns {Element|null} - The submit button element or null if not found
+ */
+function findSubmitButton() {
+    // Look for the submit button by ID first
+    const submitById = document.querySelector('ytd-button-renderer#submit');
+    if (submitById && submitById.offsetParent !== null) {
+        const button = submitById.querySelector('button');
+        return button || submitById;
+    }
+    
+    // Fallback: look for button with "Submit" text
+    const buttons = document.querySelectorAll('ytd-button-renderer button');
+    for (const button of buttons) {
+        const textElement = button.querySelector('span[role="text"]');
+        if (textElement && textElement.textContent.trim() === 'Submit') {
+            if (button.offsetParent !== null) {
+                return button;
+            }
+        }
+    }
+    
+    return null;
+}
