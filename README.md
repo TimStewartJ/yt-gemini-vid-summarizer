@@ -12,6 +12,8 @@ A powerful Firefox browser extension that seamlessly integrates YouTube with Goo
 - **📱 Sidebar Integration**: Opens Gemini in a convenient sidebar panel for seamless multitasking
 - **🎯 Smart Detection**: Intelligently detects video URLs from thumbnails, links, and page context
 - **⚡ Automatic Prompt Injection**: Automatically sends the video URL to Gemini with optimized prompting
+- **✅ Auto-Mark as Watched**: Automatically marks summarized videos as "Already Watched" to prevent them from appearing in recommendations
+- **⚙️ Customizable Settings**: Configure prompt templates and toggle auto-marking features through the options page
 - **🔔 Visual Feedback**: Provides notifications to confirm actions and guide user experience
 
 ## 🛠️ Installation
@@ -50,6 +52,41 @@ A powerful Firefox browser extension that seamlessly integrates YouTube with Goo
 1. Click the extension icon in the Firefox toolbar
 2. If you're on a YouTube video page, it will automatically prepare for summarization
 3. Otherwise, navigate to a YouTube video first
+
+## ⚙️ Settings & Configuration
+
+The extension includes a settings page where you can customize its behavior:
+
+### Access Settings
+
+1. Right-click the extension icon in the Firefox toolbar
+2. Select "Options" from the context menu
+3. Or go to `about:addons` → find the extension → click "Options"
+
+### Available Settings
+
+#### Custom Prompt Template
+- Customize the prompt sent to Gemini for video summarization
+- Use `{videoUrl}` as a placeholder for the YouTube video URL
+- Default: Optimized prompt for comprehensive video analysis
+
+#### Auto-Mark as Watched
+- **Enabled (Default)**: Videos are automatically marked as "Already Watched" in YouTube when summarized via right-click
+- **Disabled**: Videos are only summarized without affecting your YouTube watch history
+- This feature helps prevent summarized videos from appearing in your recommendations
+
+### How Auto-Mark Works
+
+When you right-click a video thumbnail and select "Summarize with Gemini":
+
+1. The extension opens Gemini in the sidebar for summarization
+2. **If auto-mark is enabled**: The extension automatically navigates YouTube's interface to mark the video as "Already Watched" by:
+   - Finding the video's three-dot menu
+   - Clicking "Not interested"
+   - Selecting "Tell us why"
+   - Choosing "I've already watched the video"
+
+This process happens in the background and helps keep your YouTube feed clean of videos you've already consumed through summaries.
 
 ## 🔧 Technical Details
 

@@ -1,8 +1,10 @@
 // Extension constants
 
 // Default prompt template for video summarization
-const DEFAULT_PROMPT = `Please provide a comprehensive analysis of this YouTube video: {videoUrl}
+const DEFAULT_PROMPT = `@YouTube Please provide a comprehensive analysis of this YouTube video: {videoUrl}
+
 Create a detailed summary that allows someone to understand the video's content without watching it. Include:
+
 1. **Overview**: A brief introduction explaining what the video is about and who created it.
 2. **Detailed Summary**: Break down the video's content chronologically, covering all major points, arguments, demonstrations, or explanations presented. Be thorough enough that someone could understand the full narrative or educational content.
 3. **Key Takeaways**: List the 5-10 most important points or lessons from the video in bullet format.
@@ -14,6 +16,7 @@ Create a detailed summary that allows someone to understand the video's content 
 5. **Notable Quotes or Moments**: Highlight any particularly impactful statements or demonstrations.
 6. **Context and Background**: If relevant, provide context about the topic, the creator, or why this video might be important.
 7. **Recommendations**: Based on the content, who would benefit most from this video and why.
+
 Please ensure your summary is detailed enough to serve as a complete replacement for watching the video, while remaining well-organized and easy to read.`;
 
 // Make constants available to other scripts
