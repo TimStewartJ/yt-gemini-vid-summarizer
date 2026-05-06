@@ -99,7 +99,7 @@ This process happens in the background and helps keep your YouTube feed clean of
 
 ### Key Technologies
 
-- **WebExtensions API**: Cross-browser extension development
+- **Firefox WebExtensions API**: Firefox extension development
 - **WebRequest API**: HTTP header injection for seamless Gemini integration
 - **Context Menus API**: Right-click functionality
 - **Notifications API**: User feedback and confirmation
@@ -127,7 +127,7 @@ This process happens in the background and helps keep your YouTube feed clean of
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/yt-gemini-vid-summarizer.git
+   git clone https://github.com/TimStewartJ/yt-gemini-vid-summarizer.git
    cd yt-gemini-vid-summarizer
    ```
 
@@ -162,15 +162,15 @@ This process happens in the background and helps keep your YouTube feed clean of
 
 ## 🏗️ CI/CD & Automation
 
-This project uses GitHub Actions to automatically build and package the extension for distribution.
+This project uses GitHub Actions to automatically build and package the Firefox extension for distribution.
 
 ### Automated Building
 
 Every push to the main branch and pull request triggers our CI/CD pipeline that:
 
 1. **Validates** the extension using `web-ext lint`
-2. **Builds** browser-specific packages using the official `web-ext` tool
-3. **Creates** ready-to-install ZIP files for both Firefox and Chrome
+2. **Builds** the Firefox package using the official `web-ext` tool
+3. **Creates** a ready-to-install Firefox ZIP file
 4. **Uploads** artifacts for easy download
 
 ### Download Pre-built Extensions
@@ -178,32 +178,20 @@ Every push to the main branch and pull request triggers our CI/CD pipeline that:
 Instead of building manually, you can download pre-built extension packages:
 
 1. Go to the [Actions tab](../../actions) in this repository
-2. Click on the latest successful "Package Extension" workflow run
-3. Download the artifact for your browser:
-   - **Firefox**: `firefox-extension-v{version}.zip`
-   - **Chrome**: `chrome-extension-v{version}.zip`
+2. Click on the latest successful "Package Firefox Extension" workflow run
+3. Download the Firefox artifact: `firefox-extension-v{version}.zip`
 
 ### Build Status
 
-![Build Status](https://github.com/yourusername/yt-gemini-vid-summarizer/workflows/Package%20Extension/badge.svg)
+![Build Status](https://github.com/TimStewartJ/yt-gemini-vid-summarizer/actions/workflows/package-extension.yml/badge.svg)
 
 ### Installation from Pre-built Package
-
-#### Firefox
 
 1. Download the Firefox artifact
 2. Open Firefox and go to `about:debugging`
 3. Click "This Firefox"
 4. Click "Load Temporary Add-on..."
 5. Select the downloaded ZIP file
-
-#### Chrome/Edge
-
-1. Download the Chrome artifact
-2. Extract the ZIP file to a folder
-3. Open Chrome and go to `chrome://extensions/`
-4. Enable "Developer mode"
-5. Click "Load unpacked" and select the extracted folder
 
 ## 🤝 Contributing
 
@@ -223,7 +211,7 @@ Contributions are welcome! Here are some ways you can help:
 
 ## ⚠️ Known Limitations
 
-- Currently Firefox-only (Chrome support planned)
+- Firefox-only package; other browsers require a separate port.
 - Requires manual navigation to Gemini (due to browser security restrictions)
 - Dependent on Gemini's availability and rate limits
 - Some YouTube layouts may affect thumbnail detection accuracy

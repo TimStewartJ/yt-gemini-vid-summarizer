@@ -1,6 +1,5 @@
 # Build artifacts
 dist/
-dist-chrome/
 test-dist/
 *.zip
 

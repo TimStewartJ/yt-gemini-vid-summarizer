@@ -1,4 +1,4 @@
-name: Package Extension
+name: Package Firefox Extension
 
 on:
   push:
@@ -50,29 +50,11 @@ jobs:
         echo "Package contents:"
         unzip -l "yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip"
         
-    - name: Build Chrome/Chromium extension
-      run: |
-        echo "Building Chrome extension..."
-        # Create Chrome-specific manifest (if needed in future)
-        web-ext build --source-dir=. --artifacts-dir=./dist-chrome --ignore-files=README.md,LICENSE,.github/ --overwrite-dest
-        
-        cd dist-chrome
-        BUILT_FILE=$(ls *.zip | head -n 1)
-        mv "$BUILT_FILE" "yt-gemini-summarizer-chrome-v${{ steps.version.outputs.version }}.zip"
-        echo "Chrome package created: yt-gemini-summarizer-chrome-v${{ steps.version.outputs.version }}.zip"
-        
     - name: Upload Firefox extension artifact
       uses: actions/upload-artifact@v4
       with:
         name: firefox-extension-v${{ steps.version.outputs.version }}
         path: dist/yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip
-        retention-days: 30
-        
-    - name: Upload Chrome extension artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: chrome-extension-v${{ steps.version.outputs.version }}
-        path: dist-chrome/yt-gemini-summarizer-chrome-v${{ steps.version.outputs.version }}.zip
         retention-days: 30
         
     - name: Upload build summary
@@ -82,5 +64,4 @@ jobs:
         path: |
           manifest.json
           dist/
-          dist-chrome/
         retention-days: 30
