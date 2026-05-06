@@ -18,12 +18,12 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
       
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '22'
         
@@ -90,7 +90,7 @@ jobs:
         unzip -l "yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip"
         
     - name: Upload Firefox extension artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: firefox-extension-v${{ steps.version.outputs.version }}
         path: dist/yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip
@@ -129,7 +129,7 @@ jobs:
 
     - name: Upload signed Firefox extension artifact if available
       if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: signed-firefox-extension-v${{ steps.version.outputs.version }}
         path: signed/
@@ -137,7 +137,7 @@ jobs:
         retention-days: 30
         
     - name: Upload build summary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: build-info-v${{ steps.version.outputs.version }}
         path: |
