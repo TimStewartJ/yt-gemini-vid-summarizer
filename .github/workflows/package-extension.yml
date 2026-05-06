@@ -50,9 +50,16 @@ jobs:
           exit 1
         fi
 
+        git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
         TAG_OBJECT_TYPE=$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")
         if [ "$TAG_OBJECT_TYPE" != "tag" ]; then
           echo "::error::Release tags must be annotated tags. Create one with: git tag -a ${GITHUB_REF_NAME} -m 'Release ${GITHUB_REF_NAME}'"
+          exit 1
+        fi
+
+        TAG_TARGET_SHA=$(git rev-parse "refs/tags/${GITHUB_REF_NAME}^{}")
+        if [ "$TAG_TARGET_SHA" != "$GITHUB_SHA" ]; then
+          echo "::error::Release tag ${GITHUB_REF_NAME} points to ${TAG_TARGET_SHA}, but this workflow is running for ${GITHUB_SHA}."
           exit 1
         fi
 
