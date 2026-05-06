@@ -173,6 +173,24 @@ Every push to the main branch and pull request triggers our CI/CD pipeline that:
 3. **Creates** a ready-to-install Firefox ZIP file
 4. **Uploads** artifacts for easy download
 
+### Publishing to Firefox Add-ons
+
+Publishing to [addons.mozilla.org](https://addons.mozilla.org/) is available from the manual "Package Firefox Extension" workflow.
+
+Before publishing, add these repository secrets from your AMO API credentials:
+
+- `AMO_JWT_ISSUER`: the AMO API key / JWT issuer
+- `AMO_JWT_SECRET`: the AMO API secret / JWT secret
+
+To publish a new listed version:
+
+1. Bump `version` in `manifest.json`.
+2. Go to the [Actions tab](../../actions) and run the "Package Firefox Extension" workflow manually.
+3. Enable `publish_to_amo`.
+4. Optionally provide `release_notes` to send to AMO.
+
+The workflow submits the listed version with `web-ext sign`. AMO may still run validation or review before the version is public.
+
 ### Download Pre-built Extensions
 
 Instead of building manually, you can download pre-built extension packages:

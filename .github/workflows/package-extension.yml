@@ -6,6 +6,16 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      publish_to_amo:
+        description: Submit this version to addons.mozilla.org after packaging
+        required: false
+        default: false
+        type: boolean
+      release_notes:
+        description: Optional AMO release notes for this version
+        required: false
+        type: string
 
 jobs:
   package:
@@ -55,6 +65,46 @@ jobs:
       with:
         name: firefox-extension-v${{ steps.version.outputs.version }}
         path: dist/yt-gemini-summarizer-firefox-v${{ steps.version.outputs.version }}.zip
+        retention-days: 30
+
+    - name: Submit listed version to AMO
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_amo }}
+      env:
+        AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+        AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        RELEASE_NOTES: ${{ inputs.release_notes }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${AMO_JWT_ISSUER}" ] || [ -z "${AMO_JWT_SECRET}" ]; then
+          echo "::error::AMO_JWT_ISSUER and AMO_JWT_SECRET repository secrets are required to publish to AMO."
+          exit 1
+        fi
+
+        metadata_args=()
+        if [ -n "${RELEASE_NOTES}" ]; then
+          python3 -c 'import json, os; json.dump({"release_notes": {"en-US": os.environ["RELEASE_NOTES"]}}, open("amo-metadata.json", "w", encoding="utf-8"), ensure_ascii=False)'
+          metadata_args+=(--amo-metadata=amo-metadata.json)
+        fi
+
+        web-ext sign \
+          --source-dir=. \
+          --artifacts-dir=./signed \
+          --ignore-files=README.md,LICENSE,.github/ \
+          --channel=listed \
+          --api-key="$AMO_JWT_ISSUER" \
+          --api-secret="$AMO_JWT_SECRET" \
+          --approval-timeout=0 \
+          --no-input \
+          "${metadata_args[@]}"
+
+    - name: Upload signed Firefox extension artifact if available
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_amo }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: signed-firefox-extension-v${{ steps.version.outputs.version }}
+        path: signed/
+        if-no-files-found: ignore
         retention-days: 30
         
     - name: Upload build summary
