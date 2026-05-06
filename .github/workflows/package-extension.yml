@@ -3,19 +3,14 @@ name: Package Firefox Extension
 on:
   push:
     branches: [ main, master ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      publish_to_amo:
-        description: Submit this version to addons.mozilla.org after packaging
-        required: false
-        default: false
-        type: boolean
-      release_notes:
-        description: Optional AMO release notes for this version
-        required: false
-        type: string
+
+permissions:
+  contents: read
 
 jobs:
   package:
@@ -24,6 +19,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
       
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -36,9 +33,34 @@ jobs:
     - name: Get extension version
       id: version
       run: |
-        VERSION=$(grep -o '"version": "[^"]*"' manifest.json | grep -o '[0-9.]*')
+        VERSION=$(python3 -c 'import json; print(json.load(open("manifest.json", encoding="utf-8"))["version"])')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Extension version: $VERSION"
+
+    - name: Validate release tag
+      if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      run: |
+        set -euo pipefail
+
+        TAG_VERSION="${GITHUB_REF_NAME#v}"
+        MANIFEST_VERSION="${{ steps.version.outputs.version }}"
+
+        if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+          echo "::error::Tag ${GITHUB_REF_NAME} does not match manifest version ${MANIFEST_VERSION}."
+          exit 1
+        fi
+
+        TAG_OBJECT_TYPE=$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")
+        if [ "$TAG_OBJECT_TYPE" != "tag" ]; then
+          echo "::error::Release tags must be annotated tags. Create one with: git tag -a ${GITHUB_REF_NAME} -m 'Release ${GITHUB_REF_NAME}'"
+          exit 1
+        fi
+
+        git fetch origin main --prune
+        if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+          echo "::error::Release tag ${GITHUB_REF_NAME} must point to a commit already merged into origin/main."
+          exit 1
+        fi
         
     - name: Lint extension
       run: |
@@ -68,11 +90,11 @@ jobs:
         retention-days: 30
 
     - name: Submit listed version to AMO
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_amo }}
+      if: ${{ startsWith(github.ref, 'refs/tags/v') }}
       env:
         AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
         AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
-        RELEASE_NOTES: ${{ inputs.release_notes }}
+        RELEASE_NOTES_FILE: release-notes/v${{ steps.version.outputs.version }}.md
       run: |
         set -euo pipefail
 
@@ -82,8 +104,8 @@ jobs:
         fi
 
         metadata_args=()
-        if [ -n "${RELEASE_NOTES}" ]; then
-          python3 -c 'import json, os; json.dump({"release_notes": {"en-US": os.environ["RELEASE_NOTES"]}}, open("amo-metadata.json", "w", encoding="utf-8"), ensure_ascii=False)'
+        if [ -s "${RELEASE_NOTES_FILE}" ]; then
+          python3 -c 'import json, os, pathlib; notes = pathlib.Path(os.environ["RELEASE_NOTES_FILE"]).read_text(encoding="utf-8"); json.dump({"release_notes": {"en-US": notes}}, open("amo-metadata.json", "w", encoding="utf-8"), ensure_ascii=False)'
           metadata_args+=(--amo-metadata=amo-metadata.json)
         fi
 
@@ -99,7 +121,7 @@ jobs:
           "${metadata_args[@]}"
 
     - name: Upload signed Firefox extension artifact if available
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_amo }}
+      if: ${{ startsWith(github.ref, 'refs/tags/v') }}
       uses: actions/upload-artifact@v4
       with:
         name: signed-firefox-extension-v${{ steps.version.outputs.version }}
