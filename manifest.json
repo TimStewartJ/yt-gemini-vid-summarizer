@@ -5,7 +5,10 @@
   "description": "Opens Gemini in sidebar to summarize YouTube videos.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "{5dad0765-f81a-42f5-9072-a66dca31efae}"
+      "id": "{5dad0765-f81a-42f5-9072-a66dca31efae}",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "icons": {
