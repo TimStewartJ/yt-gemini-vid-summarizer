@@ -175,7 +175,7 @@ Every push to the main branch and pull request triggers our CI/CD pipeline that:
 
 ### Publishing to Firefox Add-ons
 
-Publishing to [addons.mozilla.org](https://addons.mozilla.org/) is available from the manual "Package Firefox Extension" workflow.
+Publishing to [addons.mozilla.org](https://addons.mozilla.org/) is handled by the release workflow documented in [`.github/RELEASE_WORKFLOW.md`](.github/RELEASE_WORKFLOW.md).
 
 Before publishing, add these repository secrets from your AMO API credentials:
 
@@ -184,12 +184,11 @@ Before publishing, add these repository secrets from your AMO API credentials:
 
 To publish a new listed version:
 
-1. Bump `version` in `manifest.json`.
-2. Go to the [Actions tab](../../actions) and run the "Package Firefox Extension" workflow manually.
-3. Enable `publish_to_amo`.
-4. Optionally provide `release_notes` to send to AMO.
+1. Run the "Prepare Release" workflow with a `patch`, `minor`, or `major` bump.
+2. Review and merge the generated release PR.
+3. Create and push the annotated `vX.Y.Z` tag from the merged `main` commit.
 
-The workflow submits the listed version with `web-ext sign`. AMO may still run validation or review before the version is public.
+The tag-triggered package workflow submits the listed version with `web-ext sign`. AMO may still run validation or review before the version is public.
 
 ### Download Pre-built Extensions
 

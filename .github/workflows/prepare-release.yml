@@ -1,0 +1,190 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump type
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      release_notes:
+        description: Optional AMO/GitHub release notes
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install web-ext
+        run: npm install -g web-ext
+
+      - name: Compute next version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+
+          manifest_path = pathlib.Path("manifest.json")
+          manifest_text = manifest_path.read_text(encoding="utf-8")
+          manifest = json.loads(manifest_text)
+          current = manifest["version"]
+          bump = os.environ["BUMP"]
+
+          parts = current.split(".")
+          if len(parts) not in (2, 3):
+              raise SystemExit(f"Expected a 2- or 3-part version, got {current!r}")
+
+          parsed = []
+          for part in parts:
+              if not re.fullmatch(r"0|[1-9][0-9]*", part):
+                  raise SystemExit(f"Invalid version part {part!r} in {current!r}")
+              value = int(part)
+              if value > 65535:
+                  raise SystemExit(f"Version part {part!r} exceeds 65535")
+              parsed.append(value)
+
+          while len(parsed) < 3:
+              parsed.append(0)
+
+          major, minor, patch = parsed
+          if bump == "major":
+              major, minor, patch = major + 1, 0, 0
+          elif bump == "minor":
+              minor, patch = minor + 1, 0
+          elif bump == "patch":
+              patch += 1
+          else:
+              raise SystemExit(f"Unknown bump type: {bump}")
+
+          for value in (major, minor, patch):
+              if value > 65535:
+                  raise SystemExit(f"Next version part {value} exceeds 65535")
+
+          next_version = f"{major}.{minor}.{patch}"
+          next_tuple = (major, minor, patch)
+          current_tuple = tuple(parsed)
+          if next_tuple <= current_tuple:
+              raise SystemExit(f"Next version {next_version} must be greater than {current}")
+
+          updated_text, replacements = re.subn(
+              r'("version"\s*:\s*")[^"]+(")',
+              rf"\g<1>{next_version}\2",
+              manifest_text,
+              count=1,
+          )
+          if replacements != 1:
+              raise SystemExit("Could not update manifest.json version")
+          manifest_path.write_text(updated_text, encoding="utf-8")
+
+          release_notes = os.environ.get("RELEASE_NOTES", "").strip()
+          if release_notes:
+              notes_dir = pathlib.Path("release-notes")
+              notes_dir.mkdir(exist_ok=True)
+              notes_path = notes_dir / f"v{next_version}.md"
+              notes_path.write_text(release_notes + "\n", encoding="utf-8")
+
+          github_output = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+          with github_output.open("a", encoding="utf-8") as output:
+              output.write(f"version={next_version}\n")
+              output.write(f"branch=release/v{next_version}\n")
+
+          pathlib.Path("release.env").write_text(
+              f"VERSION={next_version}\nBRANCH=release/v{next_version}\n",
+              encoding="utf-8",
+          )
+          PY
+
+          source release.env
+          rm release.env
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Release branch ${BRANCH} already exists."
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "v${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Release tag v${VERSION} already exists."
+            exit 1
+          fi
+
+      - name: Validate release build
+        run: |
+          set -euo pipefail
+          web-ext lint --source-dir=. --ignore-files=README.md,LICENSE,.github/
+          rm -rf dist
+          web-ext build --source-dir=. --artifacts-dir=./dist --ignore-files=README.md,LICENSE,.github/ --overwrite-dest
+          rm -rf dist
+
+      - name: Create release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add manifest.json
+          if [ -d release-notes ]; then
+            git add release-notes/
+          fi
+          git commit -m "Prepare release v${VERSION}"
+          git push --set-upstream origin "$BRANCH"
+
+          cat > pr-body.md <<EOF
+          Prepare release v${VERSION}.
+
+          After this PR is merged, publish by creating an annotated tag:
+
+          \`\`\`bash
+          git fetch origin main
+          git switch main
+          git pull --ff-only origin main
+          git tag -a v${VERSION} -m "Release v${VERSION}"
+          git push origin v${VERSION}
+          \`\`\`
+          EOF
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Release v${VERSION}" \
+            --body-file pr-body.md)
+
+          echo "Release PR: ${PR_URL}"
+          {
+            echo "## Release PR"
+            echo "${PR_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
