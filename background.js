@@ -2,6 +2,18 @@
 let currentVideoUrl = null;
 // Store the video URL from context menu right-clicks
 let contextVideoUrl = null;
+const GEMINI_PROMPT_HEADER = "X-Firefox-Gemini";
+const GEMINI_APP_URL_PATTERN = "*://gemini.google.com/app*";
+const GEMINI_HEADER_TIMEOUT_MS = 30000;
+let activeGeminiHeaderInjection = null;
+let cachedPromptTemplate = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
+
+refreshCachedPromptTemplate();
+browser.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "sync" && changes.promptTemplate) {
+    cachedPromptTemplate = changes.promptTemplate.newValue || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
+  }
+});
 
 /**
  * Updates page action visibility based on whether the tab is on a YouTube video page
@@ -16,25 +28,44 @@ function updatePageActionVisibility(tab) {
 }
 
 /**
- * Safely removes a webRequest listener, ignoring errors if listener doesn't exist
+ * Removes a webRequest listener only if it is currently registered
  * @param {function} listener - The listener function to remove
  */
-function safeRemoveListener(listener) {
-  try {
+function removeGeminiHeaderListener(listener) {
+  if (browser.webRequest.onBeforeSendHeaders.hasListener(listener)) {
     browser.webRequest.onBeforeSendHeaders.removeListener(listener);
-  } catch (e) {
-    // Listener wasn't added yet or already removed, ignore
   }
+}
+
+/**
+ * Clears the pending Gemini header injection listener and timeout
+ */
+function clearPendingGeminiHeaderInjection() {
+  if (!activeGeminiHeaderInjection) {
+    return;
+  }
+
+  clearTimeout(activeGeminiHeaderInjection.timeoutId);
+  removeGeminiHeaderListener(activeGeminiHeaderInjection.listener);
+  activeGeminiHeaderInjection = null;
+}
+
+/**
+ * Loads the prompt template cache used during user-action handlers
+ */
+function refreshCachedPromptTemplate() {
+  browser.storage.sync.get(['promptTemplate']).then(result => {
+    cachedPromptTemplate = result.promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
+  }).catch(error => {
+    console.error('Error loading prompt template:', error);
+  });
 }
 
 // Listen for page action clicks (extension icon in address bar)
 browser.pageAction.onClicked.addListener((tab) => {
   // Since page action only shows on YouTube videos, we can assume it's valid
   currentVideoUrl = tab.url;
-  // Open the sidebar
-  browser.sidebarAction.open();
-  // Set up header injection for when sidebar navigates to Gemini
-  prepareGeminiWithHeader(currentVideoUrl);
+  openGeminiSidebarWithHeader(currentVideoUrl);
 });
 
 // Listen for tab updates to show/hide page action
@@ -126,13 +157,9 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
 function handleVideoSummarization(videoUrl) {
   // Set the current video URL for the sidebar
   currentVideoUrl = videoUrl;
-  
-  // Open the sidebar
-  browser.sidebarAction.open();
-  
-  // Set up header injection for when sidebar navigates to Gemini
-  prepareGeminiWithHeader(videoUrl);
-  
+
+  openGeminiSidebarWithHeader(videoUrl);
+
   // Also trigger marking the video as watched (if enabled in settings)
   browser.storage.sync.get(['autoMarkWatched']).then(result => {
     const autoMarkWatched = result.autoMarkWatched !== undefined ? result.autoMarkWatched : true; // Default to enabled
@@ -165,41 +192,79 @@ function handleVideoSummarization(videoUrl) {
 }
 
 /**
+ * Prepares Gemini prompt injection before opening the sidebar
+ * @param {string} videoUrl - The YouTube video URL to summarize
+ */
+function openGeminiSidebarWithHeader(videoUrl) {
+  prepareGeminiWithHeader(videoUrl);
+  browser.sidebarAction.open().catch(error => {
+    console.error('Error opening Gemini sidebar:', error);
+  });
+}
+
+/**
  * Sets up the webRequest listener for Gemini requests with the given prompt
  * @param {string} promptText - The prompt text to include in the header
  */
 function setupGeminiListener(promptText) {
+  clearPendingGeminiHeaderInjection();
+
   // Encode the prompt as URI component to handle newlines and special characters
   const encodedPrompt = encodeURIComponent(promptText);
-  
-  // Set up the webRequest listener for sidebar navigation
+
   const listener = function(details) {
-    // Check if this request is from the sidebar and is going to Gemini
-    if (details.url && details.url.includes('gemini.google.com')) {
-      // Add our custom header
-      details.requestHeaders.push({
-        name: "X-Firefox-Gemini",
-        value: encodedPrompt
-      });
-      
-      return {requestHeaders: details.requestHeaders};
+    if (!isGeminiAppNavigation(details)) {
+      return;
     }
+
+    clearPendingGeminiHeaderInjection();
+
+    const requestHeaders = (details.requestHeaders || [])
+      .filter(header => header.name.toLowerCase() !== GEMINI_PROMPT_HEADER.toLowerCase());
+
+    requestHeaders.push({
+      name: GEMINI_PROMPT_HEADER,
+      value: encodedPrompt
+    });
+
+    return {requestHeaders};
   };
-  
-  // Remove any existing listener first
-  safeRemoveListener(listener);
-  
+
   // Add the listener for Gemini requests
   browser.webRequest.onBeforeSendHeaders.addListener(
     listener,
-    {urls: ["*://gemini.google.com/*"]},
+    {
+      urls: [GEMINI_APP_URL_PATTERN],
+      types: ["main_frame"]
+    },
     ["blocking", "requestHeaders"]
   );
-  
-  // Set a timeout to clean up the listener
-  setTimeout(() => {
-    safeRemoveListener(listener);
-  }, 30000); // 30 second timeout for sidebar usage
+
+  const injection = {
+    listener,
+    timeoutId: setTimeout(() => {
+      if (activeGeminiHeaderInjection === injection) {
+        clearPendingGeminiHeaderInjection();
+      }
+    }, GEMINI_HEADER_TIMEOUT_MS)
+  };
+
+  activeGeminiHeaderInjection = injection;
+}
+
+/**
+ * Checks whether a request is the Gemini app navigation that should receive the prompt header
+ * @param {object} details - webRequest request details
+ * @returns {boolean}
+ */
+function isGeminiAppNavigation(details) {
+  if (!details.url || (details.type && details.type !== "main_frame")) {
+    return false;
+  }
+
+  const url = new URL(details.url);
+  return url.hostname === "gemini.google.com" &&
+    (url.pathname === "/app" || url.pathname.startsWith("/app/"));
 }
 
 /**
@@ -207,16 +272,6 @@ function setupGeminiListener(promptText) {
  * @param {string} videoUrl - The YouTube video URL to include in the prompt
  */
 function prepareGeminiWithHeader(videoUrl) {
-  // Get the custom prompt template from storage, fallback to default
-  browser.storage.sync.get(['promptTemplate']).then(result => {
-    const promptTemplate = result.promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
-    const promptText = promptTemplate.replace('{videoUrl}', videoUrl);
-    
-    setupGeminiListener(promptText);
-  }).catch(error => {
-    console.error('Error loading prompt template:', error);
-    // Fallback to default prompt if storage fails
-    const defaultPromptText = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT.replace('{videoUrl}', videoUrl);
-    setupGeminiListener(defaultPromptText);
-  });
+  const promptText = cachedPromptTemplate.replace('{videoUrl}', videoUrl);
+  setupGeminiListener(promptText);
 }
