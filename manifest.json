@@ -62,10 +62,6 @@
       "matches": ["*://*.youtube.com/*"],
       "js": [
         "content-scripts/url-utils.js",
-        "content-scripts/automation-config.js",
-        "content-scripts/smart-waiter.js",
-        "content-scripts/action-sequencer.js",
-        "content-scripts/video-automation.js",
         "content.js"
       ],
       "run_at": "document_idle"

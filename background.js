@@ -160,28 +160,6 @@ function handleVideoSummarization(videoUrl) {
 
   openGeminiSidebarWithHeader(videoUrl);
 
-  // Also trigger marking the video as watched (if enabled in settings)
-  browser.storage.sync.get(['autoMarkWatched']).then(result => {
-    const autoMarkWatched = result.autoMarkWatched !== undefined ? result.autoMarkWatched : true; // Default to enabled
-    
-    if (autoMarkWatched) {
-      browser.tabs.query({active: true, currentWindow: true}).then(tabs => {
-        if (tabs[0] && tabs[0].url && tabs[0].url.includes('youtube.com')) {
-          browser.tabs.sendMessage(tabs[0].id, {
-            action: 'markVideoAsWatched',
-            videoUrl: videoUrl
-          }).catch(error => {
-            console.log('Could not send mark as watched message:', error);
-          });
-        }
-      }).catch(error => {
-        console.log('Error querying tabs for mark as watched:', error);
-      });
-    }
-  }).catch(error => {
-    console.log('Error checking autoMarkWatched setting:', error);
-  });
-  
   // Show a notification to confirm the action
   browser.notifications.create({
     type: 'basic',

@@ -4,10 +4,6 @@
  * 
  * This file serves as the main entry point and coordinates the various modules:
  * - URL utilities for video ID extraction and URL handling
- * - Automation configuration for element selectors and strategies
- * - Smart element waiting for robust DOM interaction
- * - Action sequencing for automation workflows
- * - Video automation for marking videos as watched
  */
 
 // Track the last right-clicked video URL
@@ -63,14 +59,6 @@ function initializeContentScript() {
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'getContextVideoUrl') {
             sendResponse({ videoUrl: lastRightClickedVideoUrl });
-        } else if (request.action === 'markVideoAsWatched') {
-            try {
-                window.VideoAutomation.markVideoAsWatched(request.videoUrl);
-                sendResponse({ success: true });
-            } catch (error) {
-                console.error('Error marking video as watched:', error);
-                sendResponse({ success: false, error: error.message });
-            }
         }
     });
 }
@@ -99,11 +87,7 @@ function setupPageMonitoring() {
 function initializeWhenReady() {
     // Check if all required modules are loaded
     const requiredModules = [
-        'URLUtils',
-        'AutomationConfig',
-        'SmartElementWaiter',
-        'ActionSequencer',
-        'VideoAutomation'
+        'URLUtils'
     ];
     
     const checkModules = () => {
