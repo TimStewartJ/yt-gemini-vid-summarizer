@@ -21,17 +21,14 @@ function showStatus(message, isError = false) {
  * Loads the saved settings from storage
  */
 function loadSettings() {
-    browser.storage.sync.get(['promptTemplate', 'autoMarkWatched']).then(result => {
+    browser.storage.sync.get(['promptTemplate']).then(result => {
         const promptTemplate = result.promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
-        const autoMarkWatched = result.autoMarkWatched !== undefined ? result.autoMarkWatched : true; // Default to enabled
         
         document.getElementById('promptTemplate').value = promptTemplate;
-        document.getElementById('autoMarkWatched').checked = autoMarkWatched;
     }).catch(error => {
         console.error('Error loading settings:', error);
         showStatus('Error loading settings. Using default values.', true);
         document.getElementById('promptTemplate').value = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
-        document.getElementById('autoMarkWatched').checked = true;
     });
 }
 
@@ -40,7 +37,6 @@ function loadSettings() {
  */
 function saveSettings() {
     const promptTemplate = document.getElementById('promptTemplate').value.trim();
-    const autoMarkWatched = document.getElementById('autoMarkWatched').checked;
     
     // If empty, use default
     const templateToSave = promptTemplate || window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
@@ -59,8 +55,7 @@ function saveSettings() {
     }
     
     browser.storage.sync.set({
-        promptTemplate: templateToSave,
-        autoMarkWatched: autoMarkWatched
+        promptTemplate: templateToSave
     }).then(() => {
         showStatus('Settings saved successfully!');
     }).catch(error => {
@@ -75,11 +70,9 @@ function saveSettings() {
 function resetSettings() {
     if (confirm('Are you sure you want to reset to default settings?')) {
         document.getElementById('promptTemplate').value = window.EXTENSION_CONSTANTS.DEFAULT_PROMPT;
-        document.getElementById('autoMarkWatched').checked = true; // Default to enabled
         
         browser.storage.sync.set({
-            promptTemplate: window.EXTENSION_CONSTANTS.DEFAULT_PROMPT,
-            autoMarkWatched: true
+            promptTemplate: window.EXTENSION_CONSTANTS.DEFAULT_PROMPT
         }).then(() => {
             showStatus('Settings reset to default values!');
         }).catch(error => {
